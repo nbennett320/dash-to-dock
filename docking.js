@@ -7,7 +7,6 @@ const Gtk = imports.gi.Gtk;
 const Meta = imports.gi.Meta;
 const Shell = imports.gi.Shell;
 const St = imports.gi.St;
-const Mainloop = imports.mainloop;
 const Params = imports.misc.params;
 
 const Main = imports.ui.main;
@@ -29,6 +28,7 @@ const Intellihide = Me.imports.intellihide;
 const Theming = Me.imports.theming;
 const MyDash = Me.imports.dash;
 const LauncherAPI = Me.imports.launcherAPI;
+const FileManager1API = Me.imports.fileManager1API;
 
 const DOCK_DWELL_CHECK_INTERVAL = 100;
 
@@ -69,11 +69,10 @@ var DashSlideContainer = GObject.registerClass({
             GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT,
             0, 1, 1),
     }
-}, class DashToDock_DashSlideContainer extends St.Widget {
+}, class DashToDock_DashSlideContainer extends St.Bin {
 
     _init(params = {}) {
         super._init(params);
-        this._child = null;
 
         // slide parameter: 1 = visible, 0 = hidden.
         this._slidex = params.slidex || 1;
@@ -83,13 +82,13 @@ var DashSlideContainer = GObject.registerClass({
     vfunc_allocate(box, flags) {
         this.set_allocation(box, flags);
 
-        if (this._child == null)
+        if (this.child == null)
             return;
 
         let availWidth = box.x2 - box.x1;
         let availHeight = box.y2 - box.y1;
         let [, , natChildWidth, natChildHeight] =
-            this._child.get_preferred_size();
+            this.child.get_preferred_size();
 
         let childWidth = natChildWidth;
         let childHeight = natChildHeight;
@@ -117,16 +116,16 @@ var DashSlideContainer = GObject.registerClass({
             childBox.y2 = slideoutSize + this._slidex * (childHeight - slideoutSize);
         }
 
-        this._child.allocate(childBox, flags);
-        this._child.set_clip(-childBox.x1, -childBox.y1,
-                             -childBox.x1+availWidth, -childBox.y1 + availHeight);
+        this.child.allocate(childBox, flags);
+        this.child.set_clip(-childBox.x1, -childBox.y1,
+                            -childBox.x1+availWidth, -childBox.y1 + availHeight);
     }
 
     /**
      * Just the child width but taking into account the slided out part
      */
     vfunc_get_preferred_width(forHeight) {
-        let [minWidth, natWidth] = this._child.get_preferred_width(forHeight);
+        let [minWidth, natWidth] = this.child.get_preferred_width(forHeight);
         if ((this.side ==  St.Side.LEFT) || (this.side == St.Side.RIGHT)) {
             minWidth = (minWidth - this._slideoutSize) * this._slidex + this._slideoutSize;
             natWidth = (natWidth - this._slideoutSize) * this._slidex + this._slideoutSize;
@@ -138,25 +137,12 @@ var DashSlideContainer = GObject.registerClass({
      * Just the child height but taking into account the slided out part
      */
     vfunc_get_preferred_height(forWidth) {
-        let [minHeight, natHeight] = this._child.get_preferred_height(forWidth);
+        let [minHeight, natHeight] = this.child.get_preferred_height(forWidth);
         if ((this.side ==  St.Side.TOP) || (this.side ==  St.Side.BOTTOM)) {
             minHeight = (minHeight - this._slideoutSize) * this._slidex + this._slideoutSize;
             natHeight = (natHeight - this._slideoutSize) * this._slidex + this._slideoutSize;
         }
         return [minHeight, natHeight];
-    }
-
-    /**
-     * I was expecting it to be a virtual function... stil I don't understand
-     * how things work.
-     */
-    add_child(actor) {
-        // I'm supposed to have only on child
-        if (this._child !== null)
-            this.remove_child(actor);
-
-        this._child = actor;
-        super.add_child(actor);
     }
 
     set slidex(value) {
@@ -166,8 +152,7 @@ var DashSlideContainer = GObject.registerClass({
         this._slidex = value;
         this.notify('slidex');
 
-        if (this._child)
-            this._child.queue_relayout();
+        this.queue_relayout();
     }
 
     get slidex() {
@@ -382,7 +367,7 @@ var DockedDash = GObject.registerClass({
 
         // Add dash container actor and the container to the Chrome.
         this.set_child(this._slider);
-        this._slider.add_child(this._box);
+        this._slider.set_child(this._box);
         this._box.add_actor(this.dash);
 
         // Add aligning container without tracking it for input region
@@ -447,7 +432,7 @@ var DockedDash = GObject.registerClass({
 
         // Remove barrier timeout
         if (this._removeBarrierTimeoutId > 0)
-            Mainloop.source_remove(this._removeBarrierTimeoutId);
+            GLib.source_remove(this._removeBarrierTimeoutId);
 
         // Remove existing barrier
         this._removeBarrier();
@@ -480,6 +465,16 @@ var DockedDash = GObject.registerClass({
             settings,
             'changed::show-favorites',
             () => { this.dash.resetAppIcons(); }
+        ], [
+            settings,
+            'changed::show-trash',
+            () => { this.dash.resetAppIcons(); },
+            Utils.SignalsHandlerFlags.CONNECT_AFTER,
+        ], [
+            settings,
+            'changed::show-mounts',
+            () => { this.dash.resetAppIcons(); },
+            Utils.SignalsHandlerFlags.CONNECT_AFTER
         ], [
             settings,
             'changed::show-running',
@@ -714,8 +709,9 @@ var DockedDash = GObject.registerClass({
                 // NOTE: Delay needed to keep mouse from moving past dock and re-hiding dock immediately. This
                 // gives users an opportunity to hover over the dock
                 if (this._removeBarrierTimeoutId > 0)
-                    Mainloop.source_remove(this._removeBarrierTimeoutId);
-                this._removeBarrierTimeoutId = Mainloop.timeout_add(100, this._removeBarrier.bind(this));
+                    GLib.source_remove(this._removeBarrierTimeoutId);
+                this._removeBarrierTimeoutId = GLib.timeout_add(
+                    GLib.PRIORITY_DEFAULT, 100, this._removeBarrier.bind(this));
             }
         });
     }
@@ -731,7 +727,7 @@ var DockedDash = GObject.registerClass({
                 this._dockState = State.HIDDEN;
                 // Remove queued barried removal if any
                 if (this._removeBarrierTimeoutId > 0)
-                    Mainloop.source_remove(this._removeBarrierTimeoutId);
+                    GLib.source_remove(this._removeBarrierTimeoutId);
                 this._updateBarrier();
             }
         });
@@ -778,8 +774,10 @@ var DockedDash = GObject.registerClass({
                 let focusWindow = global.display.focus_window;
                 this._dockDwellUserTime = focusWindow ? focusWindow.user_time : 0;
 
-                this._dockDwellTimeoutId = Mainloop.timeout_add(DockManager.settings.get_double('show-delay') * 1000,
-                                                                this._dockDwellTimeout.bind(this));
+                this._dockDwellTimeoutId = GLib.timeout_add(
+                    GLib.PRIORITY_DEFAULT,
+                    DockManager.settings.get_double('show-delay') * 1000,
+                    this._dockDwellTimeout.bind(this));
                 GLib.Source.set_name_by_id(this._dockDwellTimeoutId, '[dash-to-dock] this._dockDwellTimeout');
             }
             this._dockDwelling = true;
@@ -792,7 +790,7 @@ var DockedDash = GObject.registerClass({
 
     _cancelDockDwell() {
         if (this._dockDwellTimeoutId != 0) {
-            Mainloop.source_remove(this._dockDwellTimeoutId);
+            GLib.source_remove(this._dockDwellTimeoutId);
             this._dockDwellTimeoutId = 0;
         }
     }
@@ -859,7 +857,7 @@ var DockedDash = GObject.registerClass({
 
         // In case the mouse move away from the dock area before hovering it, in such case the leave event
         // would never be triggered and the dock would stay visible forever.
-        let triggerTimeoutId =  Mainloop.timeout_add(250, () => {
+        let triggerTimeoutId =  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 250, () => {
             triggerTimeoutId = 0;
 
             let [x, y, mods] = global.get_pointer();
@@ -1214,7 +1212,7 @@ var DockedDash = GObject.registerClass({
             this._signalsHandler.removeWithLabel(label);
 
             if (this._optionalScrollWorkspaceSwitchDeadTimeId) {
-                Mainloop.source_remove(this._optionalScrollWorkspaceSwitchDeadTimeId);
+                GLib.source_remove(this._optionalScrollWorkspaceSwitchDeadTimeId);
                 this._optionalScrollWorkspaceSwitchDeadTimeId = 0;
             }
         }
@@ -1253,7 +1251,8 @@ var DockedDash = GObject.registerClass({
                 if (this._optionalScrollWorkspaceSwitchDeadTimeId)
                     return false;
                 else
-                    this._optionalScrollWorkspaceSwitchDeadTimeId = Mainloop.timeout_add(250, () => {
+                    this._optionalScrollWorkspaceSwitchDeadTimeId = GLib.timeout_add(
+                        GLib.PRIORITY_DEFAULT, 250, () => {
                         this._optionalScrollWorkspaceSwitchDeadTimeId = 0;
                     });
 
@@ -1266,7 +1265,7 @@ var DockedDash = GObject.registerClass({
                     // Set the actor non reactive, so that it doesn't prevent the
                     // clicks events from reaching the dash actor. I can't see a reason
                     // why it should be reactive.
-                    Main.wm._workspaceSwitcherPopup.actor.reactive = false;
+                    Main.wm._workspaceSwitcherPopup.reactive = false;
                     Main.wm._workspaceSwitcherPopup.connect('destroy', function() {
                         Main.wm._workspaceSwitcherPopup = null;
                     });
@@ -1426,18 +1425,19 @@ var KeyboardShortcuts = class DashToDock_KeyboardShortcuts {
     _showOverlay() {
         for (let i = 0; i < this._allDocks.length; i++) {
             let dock = this._allDocks[i];
-            if (dock._settings.get_boolean('hotkeys-overlay'))
+            if (DockManager.settings.get_boolean('hotkeys-overlay'))
                 dock.dash.toggleNumberOverlay(true);
 
             // Restart the counting if the shortcut is pressed again
             if (dock._numberOverlayTimeoutId) {
-                Mainloop.source_remove(dock._numberOverlayTimeoutId);
+                GLib.source_remove(dock._numberOverlayTimeoutId);
                 dock._numberOverlayTimeoutId = 0;
             }
 
             // Hide the overlay/dock after the timeout
-            let timeout = dock._settings.get_double('shortcut-timeout') * 1000;
-            dock._numberOverlayTimeoutId = Mainloop.timeout_add(timeout, () => {
+            let timeout = DockManager.settings.get_double('shortcut-timeout') * 1000;
+            dock._numberOverlayTimeoutId = GLib.timeout_add(
+                GLib.PRIORITY_DEFAULT, timeout, () => {
                     dock._numberOverlayTimeoutId = 0;
                     dock.dash.toggleNumberOverlay(false);
                     // Hide the dock again if necessary
@@ -1445,7 +1445,7 @@ var KeyboardShortcuts = class DashToDock_KeyboardShortcuts {
             });
 
             // Show the dock if it is hidden
-            if (dock._settings.get_boolean('hotkeys-show-dock')) {
+            if (DockManager.settings.get_boolean('hotkeys-show-dock')) {
                 let showDock = (dock._intellihideIsEnabled || dock._autohideIsEnabled);
                 if (showDock)
                     dock._show();
@@ -1576,6 +1576,8 @@ var DockManager = class DashToDock_DockManager {
         this._remoteModel = new LauncherAPI.LauncherEntryRemoteModel();
         this._settings = ExtensionUtils.getSettings('org.gnome.shell.extensions.dash-to-dock');
         this._oldDash = Main.overview._dash;
+        this._ensureFileManagerClient();
+
         /* Array of all the docks created */
         this._allDocks = [];
         this._createDocks();
@@ -1594,6 +1596,24 @@ var DockManager = class DashToDock_DockManager {
 
     static get settings() {
         return DockManager.getDefault()._settings;
+    }
+
+    get fm1Client() {
+        return this._fm1Client;
+    }
+
+    _ensureFileManagerClient() {
+        let supportsLocations = ['show-trash', 'show-mounts'].some((s) => {
+            return this._settings.get_boolean(s);
+        });
+
+        if (supportsLocations) {
+            if (!this._fm1Client)
+                this._fm1Client = new FileManager1API.FileManager1Client();
+        } else if (this._fm1Client) {
+            this._fm1Client.destroy();
+            this._fm1Client = null;
+        }
     }
 
     _toggle() {
@@ -1629,7 +1649,15 @@ var DockManager = class DashToDock_DockManager {
             this._settings,
             'changed::dock-fixed',
             this._adjustPanelCorners.bind(this)
-        ]);
+        ], [
+            this._settings,
+            'changed::show-trash',
+            () => this._ensureFileManagerClient()
+        ], [
+            this._settings,
+            'changed::show-mounts',
+            () => this._ensureFileManagerClient()
+        ], );
     }
 
     _createDocks() {
@@ -1839,6 +1867,10 @@ var DockManager = class DashToDock_DockManager {
         this._deleteDocks();
         this._revertPanelCorners();
         this._restoreDash();
+        if (this._fm1Client) {
+            this._fm1Client.destroy();
+            this._fm1Client = null;
+        }
         this._remoteModel.destroy();
         this._settings.run_dispose();
         this._settings = null;
