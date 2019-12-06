@@ -229,6 +229,54 @@ var Settings = class DashToDock_Settings {
                 return Math.round(value * 100) + ' %';
             },
 
+            // custom_blur_scale_value_changed_cb(scale) {
+            //     // Avoid settings the opacity consinuosly as it's change is animated
+            //     if (this._opacity_timeout > 0)
+            //         Mainloop.source_remove(this._opacity_timeout);
+
+            //     this._opacity_timeout = Mainloop.timeout_add(SCALE_UPDATE_TIMEOUT, () => {
+            //         this._settings.set_double('background-opacity', scale.get_value());
+            //         this._opacity_timeout = 0;
+            //         return GLib.SOURCE_REMOVE;
+            //     });
+            // },
+
+            // min_blur_scale_value_changed_cb(scale) {
+            //     // Avoid settings the opacity consinuosly as it's change is animated
+            //     if (this._opacity_timeout > 0)
+            //         Mainloop.source_remove(this._opacity_timeout);
+
+            //     this._opacity_timeout = Mainloop.timeout_add(SCALE_UPDATE_TIMEOUT, () => {
+            //         this._settings.set_double('min-alpha', scale.get_value());
+            //         this._opacity_timeout = 0;
+            //         return GLib.SOURCE_REMOVE;
+            //     });
+            // },
+
+            // max_blur_scale_value_changed_cb(scale) {
+            //     // Avoid settings the opacity consinuosly as it's change is animated
+            //     if (this._opacity_timeout > 0)
+            //         Mainloop.source_remove(this._opacity_timeout);
+
+            //     this._opacity_timeout = Mainloop.timeout_add(SCALE_UPDATE_TIMEOUT, () => {
+            //         this._settings.set_double('max-alpha', scale.get_value());
+            //         this._opacity_timeout = 0;
+            //         return GLib.SOURCE_REMOVE;
+            //     });
+            // },
+
+            // custom_blur_scale_format_value_cb(scale, value) {
+            //     return Math.round(value * 100) + ' %';
+            // },
+
+            // min_blur_scale_format_value_cb(scale, value) {
+            //     return Math.round(value * 100) + ' %';
+            // },
+
+            // max_blur_scale_format_value_cb(scale, value) {
+            //     return Math.round(value * 100) + ' %';
+            // },
+
             all_windows_radio_button_toggled_cb(button) {
                 if (button.get_active())
                     this._settings.set_enum('intellihide-mode', 0);

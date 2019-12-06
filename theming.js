@@ -24,6 +24,8 @@ const Me = imports.misc.extensionUtils.getCurrentExtension();
 const Docking = Me.imports.docking;
 const Utils = Me.imports.utils;
 
+const blur = Me.imports.blur
+
 /*
  * DEFAULT:  transparency given by theme
  * FIXED:    constant transparency chosen by user
@@ -357,6 +359,10 @@ var Transparency = class DashToDock_Transparency {
         // although it should never happen
         this.disable();
 
+        // enable blur
+        blur = new Blur();
+        blur._startup()
+
         this._base_actor_style = this._actor.get_style();
         if (this._base_actor_style == null) {
             this._base_actor_style = "";
@@ -408,6 +414,9 @@ var Transparency = class DashToDock_Transparency {
         // although it should never happen
         this._signalsHandler.removeWithLabel('transparency');
 
+        // disable blur
+        blur.disable();
+
         for (let key of this._trackedWindows.keys())
             this._trackedWindows.get(key).forEach(id => {
                 key.disconnect(id);
@@ -419,6 +428,7 @@ var Transparency = class DashToDock_Transparency {
 
     destroy() {
         this.disable();
+        blur.disable();
         this._signalsHandler.destroy();
         this._injectionsHandler.destroy();
     }
