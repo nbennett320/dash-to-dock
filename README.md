@@ -8,6 +8,9 @@ This extension enhances the dash moving it out of the overview and transforming 
 
 For additional installation instructions and more information visit [https://micheleg.github.io/dash-to-dock/](https://micheleg.github.io/dash-to-dock/).
 
+## Frosted glass effect
+The purpose of this fork is to enhance and add to the appearance of the dock. The goal is to allow users to customize the dock such that looks like the MacOS dock -- especially the blur or "frosted glass" effect behind the dock. The blur shader is taken from https://github.com/yozoon/gnome-shell-extension-blyr.
+
 ## Installation from source
 
 The extension can be installed directly from source, either for the convenience of using git or to test the latest development version. Clone the desired branch with git
